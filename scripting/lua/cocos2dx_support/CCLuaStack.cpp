@@ -41,6 +41,52 @@ extern "C" {
 #include "Cocos2dxLuaLoader.h"
 #endif
 
+namespace {
+int lua_print(lua_State * luastate)
+{
+    int nargs = lua_gettop(luastate);
+
+    std::string t;
+    for (int i=1; i <= nargs; i++)
+    {
+        if (lua_istable(luastate, i))
+            t += "table";
+        else if (lua_isnone(luastate, i))
+            t += "none";
+        else if (lua_isnil(luastate, i))
+            t += "nil";
+        else if (lua_isboolean(luastate, i))
+        {
+            if (lua_toboolean(luastate, i) != 0)
+                t += "true";
+            else
+                t += "false";
+        }
+        else if (lua_isfunction(luastate, i))
+            t += "function";
+        else if (lua_islightuserdata(luastate, i))
+            t += "lightuserdata";
+        else if (lua_isthread(luastate, i))
+            t += "thread";
+        else
+        {
+            const char * str = lua_tostring(luastate, i);
+            if (str)
+                t += lua_tostring(luastate, i);
+            else
+                t += lua_typename(luastate, lua_type(luastate, i));
+        }
+        if (i!=nargs)
+            t += "\t";
+    }
+    CCLOG("[LUA-print] %s", t.c_str());
+
+    return 0;
+}
+}
+
+
+
 NS_CC_BEGIN
 
 CCLuaStack *CCLuaStack::create(void)
@@ -59,12 +105,21 @@ CCLuaStack *CCLuaStack::attach(lua_State *L)
     return stack;
 }
 
+
 bool CCLuaStack::init(void)
 {
     m_state = lua_open();
     luaL_openlibs(m_state);
     tolua_Cocos2d_open(m_state);
     toluafix_open(m_state);
+
+    //change lua print function to CCLog 
+    const luaL_reg global_functions[] = {
+        {"print", lua_print},
+        {NULL, NULL},
+    };
+    luaL_register(m_state, "_G", global_functions);
+
 
 #if (CC_TARGET_PLATFORM == CC_PLATFORM_IOS || CC_TARGET_PLATFORM == CC_PLATFORM_MAC)
     CCLuaObjcBridge::luaopen_luaoc(m_state);
